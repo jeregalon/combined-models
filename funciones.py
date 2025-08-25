@@ -5,6 +5,46 @@ import cv2
 import cv2
 import numpy as np
 
+def rotate(image, coords):
+    xywhr_list = coords.xywhr.squeeze().tolist()
+    # xywhr_class_list = []
+    if is_plane(xywhr_list):
+        # xywhr_list.append(int(coords.cls[0].item()))
+        # xywhr_class_list.append(xywhr_list)
+        x, y, w, h, r = xywhr_list
+    else:
+        # for i, box in enumerate(xywhr_list):
+        #     box.append(int(coords.cls[i].item()))
+        #     xywhr_class_list.append(box)
+        idx = (coords.cls == 0).nonzero(as_tuple=True)[0]
+        pos = idx.item()
+        x, y, w, h, r = xywhr_list[pos]
+
+    try:
+        r = float(np.degrees(r))    # convertir r (rotación) a grados
+    except:
+        print("No se pudo extraer el ángulo de rotación de este elemento")
+        return
+    
+    if w < h:
+        w, h = h, w
+        r += 90
+
+    M = cv2.getRotationMatrix2D((x, y), r, 1.0)
+    rotated_image = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
+    
+    return rotated_image
+
+def rotate_180(image):
+    alto, ancho = image.shape[:2]
+    x, y = ancho // 2, alto // 2
+    M = cv2.getRotationMatrix2D((x, y), 180, 1.0)
+    rotated_image = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
+    
+    return rotated_image
+
+
+
 def trim_box(image, coords):
     x, y, w, h, r = coords
 
