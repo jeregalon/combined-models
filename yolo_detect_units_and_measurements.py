@@ -23,65 +23,90 @@ archivos = glob.glob(os.path.join(carpeta_entrada, "*"))
 for archivo in archivos:
     nombre_archivo = os.path.basename(archivo)
     nombre_sin_ext, ext = os.path.splitext(nombre_archivo)
+    angles_rotated_list = []
+
+    characters_detected = True
 
     # Procesar imágenes
     if ext.lower() in ext_img:
         img_array = cv2.imread(archivo)
         results = model(archivo)
         for result in results:
-            rotated_image = rotate(img_array, result.obb)
+            rotated_image, angle_rotated = rotate(img_array, result.obb)
+            angles_rotated_list.append(angle_rotated)
             point_detection_attempts = 0
             while True:
                 detected_characters = model_ch(rotated_image)
                 hay_punto = (detected_characters[0].boxes.cls == 0).any().item()
                 if not hay_punto:
                     angle = 180 if point_detection_attempts == 0 else 90
-                    rotated_image = rotate_angle(rotated_image, angle)
+                    rotated_image = rotate_angle(rotated_image, angle, carpeta_salida)
+                    angles_rotated_list.append(angle)
                     point_detection_attempts += 1
+                    if point_detection_attempts > 3:
+                        print(f"Sin detección válida en {nombre_archivo}")
+                        characters_detected = False
+                        break
                 else:
                     break
-            characters_coords = []
-            xywh_list = detected_characters[0].boxes.xywh.squeeze().tolist()
-            for i, box in enumerate(xywh_list):
-                character_class = int(detected_characters[0].boxes.cls[i].item())
-                character_conf = detected_characters[0].boxes.conf[i].item()
-                characters_coords.append([box[0], character_class, character_conf])
+            
+            if characters_detected:
+                characters_coords = []
+                xywh_list = detected_characters[0].boxes.xywh.squeeze().tolist()
+                if is_plane(xywh_list):
+                    character_class = int(detected_characters[0].boxes.cls[0].item())
+                    character_conf = detected_characters[0].boxes.conf[0].item()
+                    characters_coords.append([xywh_list, character_class, character_conf])
+                else:
+                    for i, box in enumerate(xywh_list):
+                        character_class = int(detected_characters[0].boxes.cls[i].item())
+                        character_conf = detected_characters[0].boxes.conf[i].item()
+                        characters_coords.append([box[0], character_class, character_conf])
 
-            ceros = [v for v in characters_coords if v[1] == 0]
-            otros = [v for v in characters_coords if v[1] != 0]
+                ceros = [v for v in characters_coords if v[1] == 0]
+                otros = [v for v in characters_coords if v[1] != 0]
 
-            if ceros:
-                mejor_cero = max(ceros, key=lambda v: v[2])  # el de mayor confianza
-                coords_filtrados = otros + [mejor_cero]
+                if ceros:
+                    mejor_cero = max(ceros, key=lambda v: v[2])  # el de mayor confianza
+                    coords_filtrados = otros + [mejor_cero]
+                else:
+                    coords_filtrados = characters_coords
+
+                # 2. Ordenar por coordenada x
+                coords_ordenados = sorted(coords_filtrados, key=lambda v: v[0])
+
+                # 3. Mapeo de clases a caracteres
+                mapa = {
+                    0: ".",
+                    1: "0",
+                    2: "1",
+                    3: "2",
+                    4: "3",
+                    5: "4",
+                    6: "5",
+                    7: "6",
+                    8: "7",
+                    9: "8",
+                    10: "9"
+                }
+
+                # 4. Crear string lectura
+                lectura = "".join(mapa[v[1]] for v in coords_ordenados)
+                print("Lectura:", lectura)
+
+                annotated_img = detected_characters[0].plot()
+
+                for ang in reversed(angles_rotated_list):
+                    annotated_img = rotate_angle(annotated_img, -ang)
+
+                ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} {lectura}.jpg")
+                cv2.imwrite(ruta_salida, annotated_img)
+            
             else:
-                coords_filtrados = characters_coords
+                ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} no detections.jpg")
+                cv2.imwrite(ruta_salida, img_array)
 
-            # 2. Ordenar por coordenada x
-            coords_ordenados = sorted(coords_filtrados, key=lambda v: v[0])
-
-            # 3. Mapeo de clases a caracteres
-            mapa = {
-                0: ".",
-                1: "0",
-                2: "1",
-                3: "2",
-                4: "3",
-                5: "4",
-                6: "5",
-                7: "6",
-                8: "7",
-                9: "8",
-                10: "9"
-            }
-
-            # 4. Crear string lectura
-            lectura = "".join(mapa[v[1]] for v in coords_ordenados)
-            print("Lectura:", lectura)
-
-            annotated_img = detected_characters[0].plot()
-            ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} {lectura}.jpg")
-            cv2.imwrite(ruta_salida, annotated_img)
-
+    
     # Procesar videos
     elif ext.lower() in ext_vid:
         cap = cv2.VideoCapture(archivo)
@@ -105,6 +130,9 @@ for archivo in archivos:
                 break
 
             results = model(frame, verbose=False)
+
+
+
             annotated_frame = results[0].plot()
             out.write(annotated_frame)
 

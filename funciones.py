@@ -5,7 +5,7 @@ import cv2
 import cv2
 import numpy as np
 
-def rotate(image, coords):
+def rotate(image, coords, exit_folder="Salidas", file_name ="-1"):
     xywhr_list = coords.xywhr.squeeze().tolist()
     # xywhr_class_list = []
     if is_plane(xywhr_list):
@@ -30,19 +30,40 @@ def rotate(image, coords):
         w, h = h, w
         r += 90
 
-    M = cv2.getRotationMatrix2D((x, y), r, 1.0)
-    rotated_image = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
+    (h_img, w_img) = image.shape[:2]
+    cx, cy = w_img // 2, h_img // 2   # centro de la imagen
 
-    # ruta_salida = os.path.join(exit_folder, f"{file_name} rotated.jpg")
-    # cv2.imwrite(ruta_salida, rotated_image)
+    # Matriz de rotación (respecto al centro de la imagen)
+    M = cv2.getRotationMatrix2D((cx, cy), r, 1.0)
+
+    # Calcular nuevas dimensiones de la imagen
+    cos = np.abs(M[0, 0])
+    sin = np.abs(M[0, 1])
+    new_w = int((h_img * sin) + (w_img * cos))
+    new_h = int((h_img * cos) + (w_img * sin))
+
+    # Ajustar la traslación de la matriz para centrar en el nuevo canvas
+    M[0, 2] += (new_w / 2) - cx
+    M[1, 2] += (new_h / 2) - cy
+
+    # Aplicar rotación
+    rotated_image = cv2.warpAffine(image, M, (new_w, new_h))
+
+    if file_name != "-1":
+        ruta_salida = os.path.join(exit_folder, f"{file_name} rotated.jpg")
+        cv2.imwrite(ruta_salida, rotated_image)
     
-    return rotated_image
+    return rotated_image, r
 
-def rotate_angle(image, angle):
+def rotate_angle(image, angle, exit_folder="Salidas", file_name ="img1", attempt = -1):
     alto, ancho = image.shape[:2]
     x, y = ancho // 2, alto // 2
     M = cv2.getRotationMatrix2D((x, y), angle, 1.0)
     rotated_image = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
+
+    attempt_str = f" {attempt} attempt" if attempt != -1 else ""
+    ruta_salida = os.path.join(exit_folder, f"{file_name} rotated{attempt_str}.jpg")
+    cv2.imwrite(ruta_salida, rotated_image)
     
     return rotated_image
 
