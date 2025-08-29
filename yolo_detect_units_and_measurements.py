@@ -32,7 +32,7 @@ for archivo in archivos:
         img_array = cv2.imread(archivo)
         results = model(archivo)
         for result in results:
-            rotated_image, angle_rotated = rotate(img_array, result.obb)
+            rotated_image, angle_rotated, original_width, original_height = rotate(img_array, result.obb)
             angles_rotated_list.append(angle_rotated)
             point_detection_attempts = 0
             while True:
@@ -40,7 +40,7 @@ for archivo in archivos:
                 hay_punto = (detected_characters[0].boxes.cls == 0).any().item()
                 if not hay_punto:
                     angle = 180 if point_detection_attempts == 0 else 90
-                    rotated_image = rotate_angle(rotated_image, angle, carpeta_salida)
+                    rotated_image = rotate_angle(rotated_image, angle)
                     angles_rotated_list.append(angle)
                     point_detection_attempts += 1
                     if point_detection_attempts > 3:
@@ -96,11 +96,21 @@ for archivo in archivos:
 
                 annotated_img = detected_characters[0].plot()
 
-                for ang in reversed(angles_rotated_list):
+                for i, ang in enumerate(reversed(angles_rotated_list)):
                     annotated_img = rotate_angle(annotated_img, -ang)
 
+                # Recortar la imagen
+                current_height, current_width = annotated_img.shape[:2]
+                start_x = (current_width - original_width) // 2
+                start_y = (current_height - original_height) // 2
+                end_x = start_x + original_width
+                end_y = start_y + original_height
+
+                # Recortar la región central
+                cropped_image = annotated_img[start_y:end_y, start_x:end_x]
+
                 ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} {lectura}.jpg")
-                cv2.imwrite(ruta_salida, annotated_img)
+                cv2.imwrite(ruta_salida, cropped_image)
             
             else:
                 ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} no detections.jpg")

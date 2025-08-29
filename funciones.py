@@ -5,7 +5,7 @@ import cv2
 import cv2
 import numpy as np
 
-def rotate(image, coords, exit_folder="Salidas", file_name ="-1"):
+def rotate(image, coords, exit_folder="Salidas", file_name ="-1", output_name="-1"):
     xywhr_list = coords.xywhr.squeeze().tolist()
     # xywhr_class_list = []
     if is_plane(xywhr_list):
@@ -50,24 +50,45 @@ def rotate(image, coords, exit_folder="Salidas", file_name ="-1"):
     rotated_image = cv2.warpAffine(image, M, (new_w, new_h))
 
     if file_name != "-1":
-        ruta_salida = os.path.join(exit_folder, f"{file_name} rotated.jpg")
+        if output_name != "-1":
+            image_name = f"{output_name}.jpg"
+        else:
+            image_name = f"{file_name} rotated.jpg"
+        ruta_salida = os.path.join(exit_folder, image_name)
         cv2.imwrite(ruta_salida, rotated_image)
     
-    return rotated_image, r
+    return rotated_image, r, w_img, h_img
 
-def rotate_angle(image, angle, exit_folder="Salidas", file_name ="img1", attempt = -1):
+def rotate_angle(image, angle, exit_folder="Salidas", file_name ="-1", attempt = -1, output_name="-1"):
     alto, ancho = image.shape[:2]
-    x, y = ancho // 2, alto // 2
-    M = cv2.getRotationMatrix2D((x, y), angle, 1.0)
-    rotated_image = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
+    cx, cy = ancho // 2, alto // 2  # centro de la imagen
 
-    attempt_str = f" {attempt} attempt" if attempt != -1 else ""
-    ruta_salida = os.path.join(exit_folder, f"{file_name} rotated{attempt_str}.jpg")
-    cv2.imwrite(ruta_salida, rotated_image)
+    # Matriz de rotación respecto al centro
+    M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
+
+    # Calcular nuevas dimensiones de la imagen rotada
+    cos = np.abs(M[0, 0])
+    sin = np.abs(M[0, 1])
+    new_w = int((alto * sin) + (ancho * cos))
+    new_h = int((alto * cos) + (ancho * sin))
+
+    # Ajustar traslación en la matriz para que no se pierda nada
+    M[0, 2] += (new_w / 2) - cx
+    M[1, 2] += (new_h / 2) - cy
+
+    # Aplicar la rotación con el nuevo tamaño
+    rotated_image = cv2.warpAffine(image, M, (new_w, new_h))
+
+    if file_name != "-1":
+        if output_name != "-1":
+            image_name = f"{output_name}.jpg"
+        else:
+            attempt_str = f" {attempt} attempt" if attempt != -1 else ""
+            image_name = f"{file_name} rotated{attempt_str}.jpg"
+        ruta_salida = os.path.join(exit_folder, image_name)
+        cv2.imwrite(ruta_salida, rotated_image)
     
     return rotated_image
-
-
 
 def trim_box(image, coords):
     x, y, w, h, r = coords
