@@ -23,99 +23,13 @@ archivos = glob.glob(os.path.join(carpeta_entrada, "*"))
 for archivo in archivos:
     nombre_archivo = os.path.basename(archivo)
     nombre_sin_ext, ext = os.path.splitext(nombre_archivo)
-    angles_rotated_list = []
-
-    characters_detected = True
 
     # Procesar imágenes
     if ext.lower() in ext_img:
         img_array = cv2.imread(archivo)
-        results = model(archivo)
-        for result in results:
-            rotated_image, angle_rotated, original_width, original_height = rotate(img_array, result.obb)
-            angles_rotated_list.append(angle_rotated)
-            point_detection_attempts = 0
-            while True:
-                detected_characters = model_ch(rotated_image)
-                hay_punto = (detected_characters[0].boxes.cls == 0).any().item()
-                if not hay_punto:
-                    angle = 180 if point_detection_attempts == 0 else 90
-                    rotated_image = rotate_angle(rotated_image, angle)
-                    angles_rotated_list.append(angle)
-                    point_detection_attempts += 1
-                    if point_detection_attempts > 3:
-                        print(f"Sin detección válida en {nombre_archivo}")
-                        characters_detected = False
-                        break
-                else:
-                    break
-            
-            if characters_detected:
-                characters_coords = []
-                xywh_list = detected_characters[0].boxes.xywh.squeeze().tolist()
-                if is_plane(xywh_list):
-                    character_class = int(detected_characters[0].boxes.cls[0].item())
-                    character_conf = detected_characters[0].boxes.conf[0].item()
-                    characters_coords.append([xywh_list, character_class, character_conf])
-                else:
-                    for i, box in enumerate(xywh_list):
-                        character_class = int(detected_characters[0].boxes.cls[i].item())
-                        character_conf = detected_characters[0].boxes.conf[i].item()
-                        characters_coords.append([box[0], character_class, character_conf])
-
-                ceros = [v for v in characters_coords if v[1] == 0]
-                otros = [v for v in characters_coords if v[1] != 0]
-
-                if ceros:
-                    mejor_cero = max(ceros, key=lambda v: v[2])  # el de mayor confianza
-                    coords_filtrados = otros + [mejor_cero]
-                else:
-                    coords_filtrados = characters_coords
-
-                # 2. Ordenar por coordenada x
-                coords_ordenados = sorted(coords_filtrados, key=lambda v: v[0])
-
-                # 3. Mapeo de clases a caracteres
-                mapa = {
-                    0: ".",
-                    1: "0",
-                    2: "1",
-                    3: "2",
-                    4: "3",
-                    5: "4",
-                    6: "5",
-                    7: "6",
-                    8: "7",
-                    9: "8",
-                    10: "9"
-                }
-
-                # 4. Crear string lectura
-                lectura = "".join(mapa[v[1]] for v in coords_ordenados)
-                print("Lectura:", lectura)
-
-                annotated_img = detected_characters[0].plot()
-
-                for i, ang in enumerate(reversed(angles_rotated_list)):
-                    annotated_img = rotate_angle(annotated_img, -ang)
-
-                # Recortar la imagen
-                current_height, current_width = annotated_img.shape[:2]
-                start_x = (current_width - original_width) // 2
-                start_y = (current_height - original_height) // 2
-                end_x = start_x + original_width
-                end_y = start_y + original_height
-
-                # Recortar la región central
-                cropped_image = annotated_img[start_y:end_y, start_x:end_x]
-
-                ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} {lectura}.jpg")
-                cv2.imwrite(ruta_salida, cropped_image)
-            
-            else:
-                ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} no detections.jpg")
-                cv2.imwrite(ruta_salida, img_array)
-
+        processed_image, reading = process_frame(model, model_ch, img_array)
+        ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} {reading}.jpg")
+        cv2.imwrite(ruta_salida, processed_image) 
     
     # Procesar videos
     elif ext.lower() in ext_vid:
@@ -139,12 +53,8 @@ for archivo in archivos:
             if not ret:
                 break
 
-            results = model(frame, verbose=False)
-
-
-
-            annotated_frame = results[0].plot()
-            out.write(annotated_frame)
+            processed_image, reading = process_frame(model, model_ch, frame)
+            out.write(processed_image)
 
         cap.release()
         out.release()
