@@ -16,7 +16,7 @@ def rotate(image, coords):
         # for i, box in enumerate(xywhr_list):
         #     box.append(int(coords.cls[i].item()))
         #     xywhr_class_list.append(box)
-        idx = (coords.cls == 0).nonzero(as_tuple=True)[0]
+        idx = (coords.cls == 3).nonzero(as_tuple=True)[0]
         pos = idx.item()
         x, y, w, h, r = xywhr_list[pos]
 
@@ -32,13 +32,16 @@ def rotate(image, coords):
 
     M = cv2.getRotationMatrix2D((x, y), r, 1.0)
     rotated_image = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
+
+    # ruta_salida = os.path.join(exit_folder, f"{file_name} rotated.jpg")
+    # cv2.imwrite(ruta_salida, rotated_image)
     
     return rotated_image
 
-def rotate_180(image):
+def rotate_angle(image, angle):
     alto, ancho = image.shape[:2]
     x, y = ancho // 2, alto // 2
-    M = cv2.getRotationMatrix2D((x, y), 180, 1.0)
+    M = cv2.getRotationMatrix2D((x, y), angle, 1.0)
     rotated_image = cv2.warpAffine(image, M, (image.shape[1], image.shape[0]))
     
     return rotated_image

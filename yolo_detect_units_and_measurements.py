@@ -14,8 +14,8 @@ ext_img = (".jpg", ".jpeg", ".png", ".bmp")
 ext_vid = (".mp4", ".avi", ".mov", ".mkv", ".wmv")
 
 # Cargar modelo
-model = YOLO("units_and_measurements.pt")
-model_ch = YOLO("best_yolo11n.pt")
+model = YOLO("digital_characters_obb_model.pt")
+model_ch = YOLO("separated_characters_model.pt")
 
 # Buscar todos los archivos en la carpeta
 archivos = glob.glob(os.path.join(carpeta_entrada, "*"))
@@ -30,11 +30,16 @@ for archivo in archivos:
         results = model(archivo)
         for result in results:
             rotated_image = rotate(img_array, result.obb)
-            detected_characters = model_ch(rotated_image)
-            hay_punto = (detected_characters[0].boxes.cls == 0).any().item()
-            if not hay_punto:
-                rotated_image = rotate_180(rotated_image)
+            point_detection_attempts = 0
+            while True:
                 detected_characters = model_ch(rotated_image)
+                hay_punto = (detected_characters[0].boxes.cls == 0).any().item()
+                if not hay_punto:
+                    angle = 180 if point_detection_attempts == 0 else 90
+                    rotated_image = rotate_angle(rotated_image, angle)
+                    point_detection_attempts += 1
+                else:
+                    break
             characters_coords = []
             xywh_list = detected_characters[0].boxes.xywh.squeeze().tolist()
             for i, box in enumerate(xywh_list):
@@ -74,7 +79,7 @@ for archivo in archivos:
             print("Lectura:", lectura)
 
             annotated_img = detected_characters[0].plot()
-            ruta_salida = os.path.join(carpeta_salida, nombre_archivo)
+            ruta_salida = os.path.join(carpeta_salida, f"{nombre_archivo} {lectura}.jpg")
             cv2.imwrite(ruta_salida, annotated_img)
 
     # Procesar videos

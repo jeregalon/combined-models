@@ -5,6 +5,7 @@ Fotos para entrada/
 Salidas/
 yoloobb_labels/
 Modelos viejos/
+digital_characters_obb_model/
 *.json
 *.pt
 *.zip
